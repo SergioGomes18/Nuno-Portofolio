@@ -1248,7 +1248,7 @@
 
   <script>
     // ==========================================
-    // CONFIGURAÇÃO SUPABASE CONECTADA (NOVO PROJETO)
+    // CONFIGURAÇÃO SUPABASE CONECTADA (NOVA INSTÂNCIA)
     // ==========================================
     const SUPABASE_URL = 'https://egychgwfqqxejhktztpp.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVneWNoZ3dmcXF4ZWpoa3R6dHBwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk0Mjg4NzYsImV4cCI6MjEwNTAwNDg3Nn0.6YfXxT4LobZzt1OabMfJ4q0JuKVHKtgHVd6oio4VVxg';
@@ -1457,6 +1457,8 @@
 
       let currentValEUR = 0;
       let totalCostEUR = 0;
+      let earliestDate = null;
+
       trades.forEach(t => {
         const s = Number(t.shares) || 0;
         const p = Number(t.price) || 0;
@@ -1471,14 +1473,30 @@
 
         const liveP = livePrices[tick] > 0 ? livePrices[tick] : p;
         currentValEUR += isUSD ? (s * liveP) / fx : (s * liveP);
+
+        if (t.date) {
+          if (!earliestDate || t.date < earliestDate) earliestDate = t.date;
+        }
       });
 
-      const todayDateStr = new Date().toISOString().split('T')[0];
-      const todayLabel = new Date().toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: '2-digit' });
+      const todayDate = new Date().toISOString().split('T')[0];
+      const todayLabel = new Date().toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' });
 
-      const timelinePoints = [
-        { dateStr: todayDateStr, label: todayLabel, val: currentValEUR, cost: totalCostEUR, sp500: totalCostEUR, isAporte: false }
-      ];
+      // Garante pelo menos 2 pontos para o Chart.js conseguir desenhar a linha perfeitamente
+      let timelinePoints = [];
+      if (earliestDate && earliestDate !== todayDate) {
+        const dObj = new Date(earliestDate);
+        const startLabel = dObj.toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' });
+        timelinePoints = [
+          { label: startLabel, val: totalCostEUR, cost: totalCostEUR, sp500: totalCostEUR },
+          { label: todayLabel, val: currentValEUR, cost: totalCostEUR, sp500: totalCostEUR }
+        ];
+      } else {
+        timelinePoints = [
+          { label: 'Aporte', val: totalCostEUR, cost: totalCostEUR, sp500: totalCostEUR },
+          { label: todayLabel, val: currentValEUR, cost: totalCostEUR, sp500: totalCostEUR }
+        ];
+      }
 
       const labels = timelinePoints.map(pt => pt.label);
       const dataVals = timelinePoints.map(pt => parseFloat(pt.val.toFixed(2)));
@@ -1500,11 +1518,11 @@
               label: 'A Tua Carteira',
               data: dataVals,
               borderColor: '#38bdf8',
-              borderWidth: 2,
+              borderWidth: 2.5,
               backgroundColor: grad,
               fill: true,
               tension: 0.25,
-              pointRadius: 4,
+              pointRadius: 5,
               pointBackgroundColor: '#38bdf8'
             },
             {
@@ -1550,8 +1568,10 @@
       const avgPrice = totalShares > 0 ? (costNative / totalShares) : (livePrices[ticker] || 0);
       const currentP = livePrices[ticker] || avgPrice;
 
-      const labels = ['Entrada', 'Atual'];
-      const priceData = [avgPrice, currentP];
+      const labels = ['Entrada', 'Ponto Médio', 'Agora'];
+      const midP = parseFloat(((avgPrice + currentP) / 2).toFixed(2));
+      const priceData = [parseFloat(avgPrice.toFixed(2)), midP, parseFloat(currentP.toFixed(2))];
+      const avgLine = [avgPrice, avgPrice, avgPrice];
 
       const ctx = canvas.getContext('2d');
       if (tvChartInstance) tvChartInstance.destroy();
@@ -1560,15 +1580,25 @@
         type: 'line',
         data: {
           labels: labels,
-          datasets: [{
-            label: 'Cotação',
-            data: priceData,
-            borderColor: '#10b981',
-            borderWidth: 2,
-            tension: 0.2,
-            pointRadius: 4,
-            pointBackgroundColor: '#10b981'
-          }]
+          datasets: [
+            {
+              label: 'Cotação',
+              data: priceData,
+              borderColor: '#10b981',
+              borderWidth: 2,
+              tension: 0.3,
+              pointRadius: 5,
+              pointBackgroundColor: '#10b981'
+            },
+            {
+              label: 'Break-even',
+              data: avgLine,
+              borderColor: '#f59e0b',
+              borderDash: [4, 4],
+              borderWidth: 1.5,
+              pointRadius: 0
+            }
+          ]
         },
         options: {
           responsive: true,
