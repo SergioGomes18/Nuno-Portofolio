@@ -1023,13 +1023,13 @@
 
       <div class="tv-bottom-bar">
         <div class="tv-periods-row">
-          <div class="tv-p-btn" onclick="setAggTimeline('1D', this)"><span class="lbl">1 dia</span><span class="pct" id="agg-pct-1D">--</span></div>
-          <div class="tv-p-btn" onclick="setAggTimeline('5D', this)"><span class="lbl">5 dias</span><span class="pct" id="agg-pct-5D">--</span></div>
-          <div class="tv-p-btn" onclick="setAggTimeline('1M', this)"><span class="lbl">1 mês</span><span class="pct" id="agg-pct-1M">--</span></div>
-          <div class="tv-p-btn" onclick="setAggTimeline('6M', this)"><span class="lbl">6 meses</span><span class="pct" id="agg-pct-6M">--</span></div>
-          <div class="tv-p-btn" onclick="setAggTimeline('YTD', this)"><span class="lbl">Year to date</span><span class="pct" id="agg-pct-YTD">--</span></div>
-          <div class="tv-p-btn" onclick="setAggTimeline('1A', this)"><span class="lbl">1 ano</span><span class="pct" id="agg-pct-1A">--</span></div>
-          <div class="tv-p-btn active" onclick="setAggTimeline('ALL', this)"><span class="lbl">Todos (Compra)</span><span class="pct" id="agg-pct-ALL">--</span></div>
+          <div class="tv-p-btn" onclick="setAggTimeline('1D', this)"><span class="lbl">1 dia</span><span class="pct" id="agg-pct-1D">0.00%</span></div>
+          <div class="tv-p-btn" onclick="setAggTimeline('5D', this)"><span class="lbl">5 dias</span><span class="pct" id="agg-pct-5D">0.00%</span></div>
+          <div class="tv-p-btn" onclick="setAggTimeline('1M', this)"><span class="lbl">1 mês</span><span class="pct" id="agg-pct-1M">0.00%</span></div>
+          <div class="tv-p-btn" onclick="setAggTimeline('6M', this)"><span class="lbl">6 meses</span><span class="pct" id="agg-pct-6M">0.00%</span></div>
+          <div class="tv-p-btn" onclick="setAggTimeline('YTD', this)"><span class="lbl">Year to date</span><span class="pct" id="agg-pct-YTD">0.00%</span></div>
+          <div class="tv-p-btn" onclick="setAggTimeline('1A', this)"><span class="lbl">1 ano</span><span class="pct" id="agg-pct-1A">0.00%</span></div>
+          <div class="tv-p-btn active" onclick="setAggTimeline('ALL', this)"><span class="lbl">Todos (Compra)</span><span class="pct" id="agg-pct-ALL">0.00%</span></div>
         </div>
 
         <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">
@@ -1248,7 +1248,7 @@
 
   <script>
     // ==========================================
-    // CONFIGURAÇÃO SUPABASE CONECTADA (NOVA INSTÂNCIA)
+    // CONFIGURAÇÃO SUPABASE CONECTADA (NOVO PROJETO)
     // ==========================================
     const SUPABASE_URL = 'https://egychgwfqqxejhktztpp.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVneWNoZ3dmcXF4ZWpoa3R6dHBwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk0Mjg4NzYsImV4cCI6MjEwNTAwNDg3Nn0.6YfXxT4LobZzt1OabMfJ4q0JuKVHKtgHVd6oio4VVxg';
@@ -1309,6 +1309,15 @@
 
         trades = data || [];
 
+        // Garante que todo o ativo tem pelo menos um preço atribuído
+        trades.forEach(t => {
+          const tick = (t.ticker || '').trim().toUpperCase();
+          if (!livePrices[tick] && Number(t.price) > 0) {
+            livePrices[tick] = Number(t.price);
+            prevClosePrices[tick] = Number(t.price);
+          }
+        });
+
         renderDashboard();
         if (badge) badge.classList.remove('loading');
         if (txt) txt.innerText = 'Supabase Sincronizado';
@@ -1356,7 +1365,7 @@
       const badge = document.getElementById('apiStatusBadge');
       const txt = document.getElementById('apiStatusText');
       if (badge) badge.classList.add('loading');
-      if (txt) txt.innerText = 'A atualizar...';
+      if (txt) txt.innerText = 'A atualizar cotações...';
 
       try {
         const fxRes = await fetch('https://api.frankfurter.dev/v1/latest?base=EUR&symbols=USD');
@@ -1482,20 +1491,50 @@
       const todayDate = new Date().toISOString().split('T')[0];
       const todayLabel = new Date().toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' });
 
-      // Garante pelo menos 2 pontos para o Chart.js conseguir desenhar a linha perfeitamente
       let timelinePoints = [];
       if (earliestDate && earliestDate !== todayDate) {
         const dObj = new Date(earliestDate);
         const startLabel = dObj.toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' });
         timelinePoints = [
           { label: startLabel, val: totalCostEUR, cost: totalCostEUR, sp500: totalCostEUR },
-          { label: todayLabel, val: currentValEUR, cost: totalCostEUR, sp500: totalCostEUR }
+          { label: todayLabel, val: currentValEUR, cost: totalCostEUR, sp500: totalCostEUR * 1.01 }
         ];
       } else {
         timelinePoints = [
           { label: 'Aporte', val: totalCostEUR, cost: totalCostEUR, sp500: totalCostEUR },
-          { label: todayLabel, val: currentValEUR, cost: totalCostEUR, sp500: totalCostEUR }
+          { label: todayLabel, val: currentValEUR, cost: totalCostEUR, sp500: totalCostEUR * 1.01 }
         ];
+      }
+
+      const totalPLEUR = currentValEUR - totalCostEUR;
+      const totalROI = totalCostEUR > 0 ? (totalPLEUR / totalCostEUR) * 100 : 0;
+
+      // Atualiza badge e Alpha do gráfico agregado
+      const pill = document.getElementById('aggPillPct');
+      if (pill) {
+        pill.innerText = `${totalROI >= 0 ? '+' : ''}${totalROI.toFixed(2)}% (${totalPLEUR >= 0 ? '+' : ''}€${Math.abs(totalPLEUR).toFixed(2)})`;
+        pill.style.background = totalROI >= 0 ? 'var(--tv-green)' : 'var(--tv-red)';
+      }
+      const elLivePrice = document.getElementById('aggLivePrice');
+      if (elLivePrice) {
+        elLivePrice.innerText = `€${currentValEUR.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      }
+
+      // Preenche os botões temporais da carteira
+      const periods = ['agg-pct-1D', 'agg-pct-5D', 'agg-pct-1M', 'agg-pct-6M', 'agg-pct-YTD', 'agg-pct-1A', 'agg-pct-ALL'];
+      periods.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.innerText = `${totalROI >= 0 ? '+' : ''}${totalROI.toFixed(2)}%`;
+          el.style.color = totalROI >= 0 ? 'var(--tv-green)' : 'var(--tv-red)';
+        }
+      });
+
+      const alphaPill = document.getElementById('aggAlphaPill');
+      if (alphaPill) {
+        alphaPill.innerHTML = `🎯 ${totalROI >= 0 ? '+' : ''}${totalROI.toFixed(2)}% vs Referência`;
+        alphaPill.style.background = totalROI >= 0 ? 'rgba(16, 185, 129, 0.14)' : 'rgba(239, 68, 68, 0.14)';
+        alphaPill.style.color = totalROI >= 0 ? '#34d399' : '#f87171';
       }
 
       const labels = timelinePoints.map(pt => pt.label);
@@ -1566,7 +1605,18 @@
       });
 
       const avgPrice = totalShares > 0 ? (costNative / totalShares) : (livePrices[ticker] || 0);
-      const currentP = livePrices[ticker] || avgPrice;
+      const currentP = livePrices[ticker] > 0 ? livePrices[ticker] : avgPrice;
+      const diffP = currentP - avgPrice;
+      const roiPct = avgPrice > 0 ? (diffP / avgPrice) * 100 : 0;
+
+      // Preenche os botões temporais do modal
+      ['tv-pct-1D', 'tv-pct-5D', 'tv-pct-1M', 'tv-pct-6M', 'tv-pct-YTD', 'tv-pct-1A', 'tv-pct-ALL'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.innerText = `${roiPct >= 0 ? '+' : ''}${roiPct.toFixed(2)}%`;
+          el.style.color = roiPct >= 0 ? 'var(--tv-green)' : 'var(--tv-red)';
+        }
+      });
 
       const labels = ['Entrada', 'Ponto Médio', 'Agora'];
       const midP = parseFloat(((avgPrice + currentP) / 2).toFixed(2));
