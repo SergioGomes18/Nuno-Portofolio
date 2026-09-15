@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Investment Portfolio Dashboard</title>
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-card: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent-blue: #2563eb;
+            --green: #10b981;
+            --red: #ef4444;
+            --border: #334155;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1100px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            background-color: var(--accent-blue);
+            color: #fff;
+            border: none;
+            padding: 9px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: opacity 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .btn-secondary {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+        }
+
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 15px;
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .card-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .card-value {
+            font-size: 1.4rem;
+            font-weight: 700;
+        }
+
+        .card-sub {
+            font-size: 0.85rem;
+            margin-top: 4px;
+        }
+
+        .positive { color: var(--green); }
+        .negative { color: var(--red); }
+
+        .section-box {
+            background-color: var(--bg-card);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        .section-header {
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border);
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.85rem;
+        }
+
+        th, td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+
+        th {
+            background-color: rgba(255, 255, 255, 0.02);
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        /* Modals */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            justify-content: center;
+            align-items: center;
+            padding: 15px;
+            z-index: 100;
+        }
+
+        .modal-content {
+            background-color: var(--bg-card);
+            border-radius: 8px;
+            padding: 20px;
+            width: 100%;
+            max-width: 450px;
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        input, select {
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border);
+            color: #fff;
+            padding: 9px;
+            border-radius: 5px;
+            font-size: 0.9rem;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div>
+            <h1>Portfólio Tracker</h1>
+            <p id="eurusd-rate" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">Taxa EUR/USD: A carregar...</p>
+        </div>
+        <div class="header-actions">
+            <button class="btn-secondary" onclick="openSettingsModal()">⚙️ Finnhub Key</button>
+            <button onclick="openTradeModal()">+ Adicionar Trade</button>
+        </div>
+    </header>
+
+    <!-- Cards de Resumo -->
+    <div class="cards-grid">
+        <div class="card">
+            <div class="card-label">Valor Total (EUR)</div>
+            <div class="card-value" id="total-val-eur">€ 0.00</div>
+            <div class="card-sub" id="total-val-usd">$ 0.00</div>
+        </div>
+        <div class="card">
+            <div class="card-label">Custo Total Investido</div>
+            <div class="card-value" id="total-cost-eur">€ 0.00</div>
+        </div>
+        <div class="card">
+            <div class="card-label">Retorno Total (P&L)</div>
+            <div class="card-value" id="total-pl-eur">€ 0.00</div>
+            <div class="card-sub" id="total-pl-pct">0.00%</div>
+        </div>
+    </div>
+
+    <!-- Tabela de Posições Consolidadas -->
+    <div class="section-box">
+        <div class="section-header">Ativos em Carteira</div>
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ticker</th>
+                        <th>Ações</th>
+                        <th>Preço Médio</th>
+                        <th>Cotação Atual</th>
+                        <th>Custo Total</th>
+                        <th>Valor Atual</th>
+                        <th>P&L (€)</th>
+                        <th>P&L (%)</th>
+                    </tr>
+                </thead>
+                <tbody id="assets-table-body">
+                    <tr><td colspan="8" style="text-align: center; color: var(--text-muted);">Sem ativos registados.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Histórico de Trades -->
+    <div class="section-box">
+        <div class="section-header">Histórico de Transações</div>
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Ticker</th>
+                        <th>Corretora</th>
+                        <th>Qtd</th>
+                        <th>Preço Compra</th>
+                        <th>Custo (€)</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="trades-table-body">
+                    <tr><td colspan="7" style="text-align: center; color: var(--text-muted);">A carregar dados do Supabase...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Adicionar Trade -->
+<div class="modal" id="tradeModal">
+    <div class="modal-content">
+        <h3>Registar Nova Compra</h3>
+        <div class="form-group">
+            <label>Ticker (ex: MSFT, META, NOW, SXRV.DE)</label>
+            <input type="text" id="m-ticker" style="text-transform: uppercase;">
+        </div>
+        <div class="form-group">
+            <label>Data da Transação</label>
+            <input type="date" id="m-date">
+        </div>
+        <div class="form-group">
+            <label>Corretora (ex: XTB, IBKR)</label>
+            <input type="text" id="m-broker" placeholder="XTB">
+        </div>
+        <div class="form-group">
+            <label>Moeda da Cotação</label>
+            <select id="m-currency">
+                <option value="USD">USD ($)</option>
+                <option value="EUR">EUR (€)</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Quantidade de Ações</label>
+            <input type="number" step="any" id="m-shares">
+        </div>
+        <div class="form-group">
+            <label>Preço por Ação</label>
+            <input type="number" step="any" id="m-price">
+        </div>
+        <div class="form-group">
+            <label>Custo Efetivo em EUR (€ debitado)</label>
+            <input type="number" step="any" id="m-costeur" placeholder="Opcional se for em EUR">
+        </div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeModal('tradeModal')">Cancelar</button>
+            <button onclick="saveTrade()">Guardar Trade</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Definições Finnhub -->
+<div class="modal" id="settingsModal">
+    <div class="modal-content">
+        <h3>Configuração Finnhub</h3>
+        <p style="font-size: 0.8rem; color: var(--text-muted);">A tua chave fica guardada apenas no armazenamento local do teu navegador.</p>
+        <div class="form-group">
+            <label>Finnhub API Key</label>
+            <input type="text" id="finnhub-key-input">
+        </div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeModal('settingsModal')">Fechar</button>
+            <button onclick="saveFinnhubKey()">Guardar Chave</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ==========================================
+    // CONFIGURAÇÃO SUPABASE DA CONTA NOVA
+    // ==========================================
+    const SUPABASE_URL = 'https://uynkfanpmllibeimrpba.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_PIBmLiVQSiurWAC0i35EgA_GaWO6RpT';
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let trades = [];
+    let currentQuotes = {};
+    let eurUsdRate = 1.08; // Valor base padrão
+
+    // Inicialização
+    document.addEventListener("DOMContentLoaded", async () => {
+        document.getElementById('m-date').valueAsDate = new Date();
+        loadFinnhubKey();
+        await fetchExchangeRate();
+        await loadTradesFromSupabase();
+    });
+
+    // Câmbio EUR/USD (Frankfurter API)
+    async function fetchExchangeRate() {
+        try {
+            const res = await fetch('https://api.frankfurter.app/latest?from=EUR&to=USD');
+            const data = await res.json();
+            if (data && data.rates && data.rates.USD) {
+                eurUsdRate = data.rates.USD;
+                document.getElementById('eurusd-rate').innerText = `Taxa EUR/USD: ${eurUsdRate.toFixed(4)}`;
+            }
+        } catch (e) {
+            console.warn("Erro ao obter taxa de câmbio:", e);
+        }
+    }
+
+    // Carregar transações do Supabase
+    async function loadTradesFromSupabase() {
+        const { data, error } = await sb.from('trades').select('*').order('date', { ascending: false });
+        if (error) {
+            console.error("Erro ao carregar trades:", error);
+            document.getElementById('trades-table-body').innerHTML = `<tr><td colspan="7" style="text-align:center; color: var(--red);">Erro ao ligar ao Supabase: ${error.message}</td></tr>`;
+            return;
+        }
+        trades = data || [];
+        renderTradesTable();
+        await fetchMarketPrices();
+        calculatePortfolio();
+    }
+
+    // Gravar nova transação
+    async function saveTrade() {
+        const ticker = document.getElementById('m-ticker').value.trim().toUpperCase();
+        const date = document.getElementById('m-date').value;
+        const broker = document.getElementById('m-broker').value.trim();
+        const currency = document.getElementById('m-currency').value;
+        const shares = parseFloat(document.getElementById('m-shares').value);
+        const price = parseFloat(document.getElementById('m-price').value);
+        let costEUR = parseFloat(document.getElementById('m-costeur').value);
+
+        if (!ticker || isNaN(shares) || isNaN(price)) {
+            alert("Preenche os campos obrigatórios.");
+            return;
+        }
+
+        if (isNaN(costEUR)) {
+            costEUR = currency === 'EUR' ? (shares * price) : (shares * price / eurUsdRate);
+        }
+
+        const newTrade = {
+            id: crypto.randomUUID(),
+            ticker,
+            date,
+            broker,
+            currency,
+            shares,
+            price,
+            costEUR
+        };
+
+        const { error } = await sb.from('trades').insert([newTrade]);
+        if (error) {
+            alert("Erro ao gravar trade: " + error.message);
+            return;
+        }
+
+        closeModal('tradeModal');
+        await loadTradesFromSupabase();
+    }
+
+    // Apagar transação
+    async function deleteTrade(id) {
+        if (!confirm("Tens a certeza que queres eliminar esta transação?")) return;
+        const { error } = await sb.from('trades').delete().eq('id', id);
+        if (error) {
+            alert("Erro ao eliminar: " + error.message);
+            return;
+        }
+        await loadTradesFromSupabase();
+    }
+
+    // Finnhub API Quotes
+    async function fetchMarketPrices() {
+        const apiKey = localStorage.getItem('finnhub_key');
+        if (!apiKey) return;
+
+        const uniqueTickers = [...new Set(trades.map(t => t.ticker))];
+        for (const sym of uniqueTickers) {
+            try {
+                // Remove extensões europeias para a cotação no Finnhub se necessário
+                const cleanSym = sym.replace('.DE', '');
+                const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${cleanSym}&token=${apiKey}`);
+                const data = await res.json();
+                if (data && data.c) {
+                    currentQuotes[sym] = data.c;
+                }
+            } catch (err) {
+                console.warn(`Erro ao carregar cotação de ${sym}:`, err);
+            }
+        }
+    }
+
+    // Cálculos de Consolidação e P&L
+    function calculatePortfolio() {
+        let totalValEUR = 0;
+        let totalCostEUR = 0;
+        const summary = {};
+
+        trades.forEach(t => {
+            const sym = t.ticker;
+            if (!summary[sym]) {
+                summary[sym] = {
+                    ticker: sym,
+                    currency: t.currency,
+                    shares: 0,
+                    costEUR: 0
+                };
+            }
+            summary[sym].shares += Number(t.shares);
+            summary[sym].costEUR += Number(t.costEUR || 0);
+        });
+
+        const assetsBody = document.getElementById('assets-table-body');
+        const rows = [];
+
+        Object.values(summary).forEach(item => {
+            if (item.shares <= 0) return;
+
+            const quote = currentQuotes[item.ticker] || 0;
+            let valEUR = 0;
+
+            if (item.currency === 'USD') {
+                valEUR = (quote * item.shares) / eurUsdRate;
+            } else {
+                valEUR = quote * item.shares;
+            }
+
+            const plEUR = valEUR > 0 ? (valEUR - item.costEUR) : 0;
+            const plPct = item.costEUR > 0 && valEUR > 0 ? ((plEUR / item.costEUR) * 100) : 0;
+            const avgPrice = item.costEUR / item.shares;
+
+            totalCostEUR += item.costEUR;
+            totalValEUR += (valEUR > 0 ? valEUR : item.costEUR);
+
+            rows.push(`
+                <tr>
+                    <td><strong>${item.ticker}</strong></td>
+                    <td>${item.shares.toFixed(4)}</td>
+                    <td>€ ${avgPrice.toFixed(2)}</td>
+                    <td>${quote > 0 ? (item.currency === 'USD' ? '$ ' : '€ ') + quote.toFixed(2) : 'Aguardando Key'}</td>
+                    <td>€ ${item.costEUR.toFixed(2)}</td>
+                    <td>€ ${valEUR.toFixed(2)}</td>
+                    <td class="${plEUR >= 0 ? 'positive' : 'negative'}">€ ${plEUR.toFixed(2)}</td>
+                    <td class="${plPct >= 0 ? 'positive' : 'negative'}">${plPct.toFixed(2)}%</td>
+                </tr>
+            `);
+        });
+
+        assetsBody.innerHTML = rows.length ? rows.join('') : `<tr><td colspan="8" style="text-align: center; color: var(--text-muted);">Sem posições ativas.</td></tr>`;
+
+        // Render Cards
+        const totalPlEUR = totalValEUR - totalCostEUR;
+        const totalPlPct = totalCostEUR > 0 ? ((totalPlEUR / totalCostEUR) * 100) : 0;
+
+        document.getElementById('total-val-eur').innerText = `€ ${totalValEUR.toFixed(2)}`;
+        document.getElementById('total-val-usd').innerText = `$ ${(totalValEUR * eurUsdRate).toFixed(2)}`;
+        document.getElementById('total-cost-eur').innerText = `€ ${totalCostEUR.toFixed(2)}`;
+
+        const plElem = document.getElementById('total-pl-eur');
+        plElem.innerText = `€ ${totalPlEUR.toFixed(2)}`;
+        plElem.className = `card-value ${totalPlEUR >= 0 ? 'positive' : 'negative'}`;
+
+        const plPctElem = document.getElementById('total-pl-pct');
+        plPctElem.innerText = `${totalPlPct >= 0 ? '+' : ''}${totalPlPct.toFixed(2)}%`;
+        plPctElem.className = `card-sub ${totalPlPct >= 0 ? 'positive' : 'negative'}`;
+    }
+
+    // Render Tabela de Transações
+    function renderTradesTable() {
+        const body = document.getElementById('trades-table-body');
+        if (!trades.length) {
+            body.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted);">Ainda não foram registadas compras.</td></tr>`;
+            return;
+        }
+
+        body.innerHTML = trades.map(t => `
+            <tr>
+                <td>${t.date}</td>
+                <td><strong>${t.ticker}</strong></td>
+                <td>${t.broker || '-'}</td>
+                <td>${Number(t.shares).toFixed(4)}</td>
+                <td>${t.currency === 'USD' ? '$' : '€'} ${Number(t.price).toFixed(2)}</td>
+                <td>€ ${Number(t.costEUR).toFixed(2)}</td>
+                <td><button class="btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick="deleteTrade('${t.id}')">Eliminar</button></td>
+            </tr>
+        `).join('');
+    }
+
+    // Finnhub Key Management
+    function loadFinnhubKey() {
+        const saved = localStorage.getItem('finnhub_key');
+        if (saved) document.getElementById('finnhub-key-input').value = saved;
+    }
+
+    function saveFinnhubKey() {
+        const key = document.getElementById('finnhub-key-input').value.trim();
+        localStorage.setItem('finnhub_key', key);
+        closeModal('settingsModal');
+        fetchMarketPrices().then(calculatePortfolio);
+    }
+
+    // Modals helpers
+    function openTradeModal() { document.getElementById('tradeModal').style.display = 'flex'; }
+    function openSettingsModal() { document.getElementById('settingsModal').style.display = 'flex'; }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+</script>
+</body>
+</html>
